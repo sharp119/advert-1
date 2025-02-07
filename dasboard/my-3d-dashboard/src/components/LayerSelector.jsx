@@ -13,6 +13,7 @@ const LayerSelector = ({ layers, onLayerSelect, selectedLayer }) => {
         value={selectedLayer !== null ? selectedLayer : ''} // Handle null initial value
         onChange={(e) => {
           const layerValue = e.target.value === '' ? null : parseInt(e.target.value, 10); // Parse back to number or null
+          console.log('Layer Selected in UI:', layerValue); // ADDED console.log - for debugging
           onLayerSelect(layerValue);
         }}
       >

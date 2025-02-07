@@ -1,109 +1,135 @@
 // src/components/VolumeSegmentation.jsx
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import { useThree } from '@react-three/fiber';
-import { Box3, Vector3 } from 'three';
+import { GridHelper, Box3, Vector3, LineSegments, BufferGeometry, Float32BufferAttribute, LineBasicMaterial } from 'three';
 import { useGLTF } from '@react-three/drei';
 
-const CubeSegment = ({ position, size, status = 'available' }) => {
-  const colors = {
-    owned: '#ff0000',
-    available: '#00ff00',
-    notAvailable: '#808080'
-  };
+const VolumeSegmentation = ({ modelUrl }) => {
+    const { scene } = useGLTF(modelUrl);
+    const { scene: threeScene } = useThree();
 
-  return (
-    <group position={position}>
-      {/* Transparent faces */}
-      <mesh>
-        <boxGeometry args={[size, size, size]} />
-        <meshStandardMaterial
-          color={colors[status]}
-          transparent
-          opacity={0.1}
-          depthWrite={false}
-        />
-      </mesh>
-      
-      {/* Visible edges */}
-      <mesh>
-        <boxGeometry args={[size, size, size]} />
-        <meshBasicMaterial
-          color={colors[status]}
-          wireframe
-          wireframeLinewidth={2}
-        />
-      </mesh>
-    </group>
-  );
-};
+    useEffect(() => {
+        if (scene) {
+            const box = new Box3().setFromObject(scene);
+            const min = box.min;
+            const max = box.max;
+            const center = new Vector3();
+            box.getCenter(center);
 
-const VolumeSegmentation = ({ modelUrl, segmentSize = 2 }) => {
-  const { scene } = useGLTF(modelUrl);
-  const groupRef = useRef();
-  const { camera } = useThree();
+            // Calculate integer grid positions within model bounds
+            const startY = Math.ceil(min.y);
+            const endY = Math.floor(max.y);
+            const startZ = Math.ceil(min.z);
+            const endZ = Math.floor(max.z);
+            const startX = Math.ceil(min.x);
+            const endX = Math.floor(max.x);
 
-  useEffect(() => {
-    if (scene) {
-      // Calculate bounds of the model
-      const box = new Box3().setFromObject(scene);
-      const size = new Vector3();
-      box.getSize(size);
+            // Calculate actual model dimensions
+            const size = new Vector3();
+            box.getSize(size);
 
-      // Calculate number of segments needed in each dimension
-      const segments = {
-        x: Math.ceil(size.x / segmentSize),
-        y: Math.ceil(size.y / segmentSize),
-        z: Math.ceil(size.z / segmentSize)
-      };
+            const gridSizeXZ = Math.max(size.x, size.z);
+            const gridDivisions = Math.max(Math.ceil(size.x), Math.ceil(size.z)); // Use integer divisions
 
-      // Calculate starting position (bottom-left-front corner)
-      const start = new Vector3();
-      box.getCenter(start);
-      start.x -= (segments.x * segmentSize) / 2;
-      start.y -= (segments.y * segmentSize) / 2;
-      start.z -= (segments.z * segmentSize) / 2;
+            // Store corner points for vertical lines
+            const gridCornerPoints = {};
 
-      // Generate segments
-      const newSegments = [];
-      for (let x = 0; x < segments.x; x++) {
-        for (let y = 0; y < segments.y; y++) {
-          for (let z = 0; z < segments.z; z++) {
-            newSegments.push({
-              position: [
-                start.x + (x * segmentSize) + (segmentSize / 2),
-                start.y + (y * segmentSize) + (segmentSize / 2),
-                start.z + (z * segmentSize) + (segmentSize / 2)
-              ],
-              size: segmentSize,
-              status: 'available'
-            });
-          }
+            // XZ Planes (horizontal) - Blue Grids and Corner Points
+            for (let y = startY; y <= endY; y++) {
+                const grid = new GridHelper(
+                    gridSizeXZ,
+                    gridDivisions,
+                    0x0000ff,
+                    0x0000ff
+                );
+                grid.position.set(center.x, y, center.z);
+                grid.material.opacity = 0.2;
+                grid.material.transparent = true;
+                threeScene.add(grid);
+
+                // Calculate corner points for this grid level
+                const points = [];
+                const halfSize = gridSizeXZ / 2;
+                const step = gridSizeXZ / gridDivisions;
+                const gridCenterX = center.x;
+                const gridCenterZ = center.z;
+
+                for (let i = 0; i <= gridDivisions; i++) {
+                    for (let j = 0; j <= gridDivisions; j++) {
+                        points.push(new Vector3(
+                            gridCenterX - halfSize + i * step,
+                            y,
+                            gridCenterZ - halfSize + j * step
+                        ));
+                    }
+                }
+                gridCornerPoints[y] = points;
+            }
+
+            // Create vertical lines connecting corners
+            const verticalLineGeometry = new BufferGeometry();
+            const verticalLineMaterial = new LineBasicMaterial({ color: 0x0000ff, transparent: true, opacity: 0.3 });
+            const verticalLineVertices = [];
+
+            for (let y = startY; y < endY; y++) {
+                const currentLevelPoints = gridCornerPoints[y];
+                const nextLevelPoints = gridCornerPoints[y + 1];
+
+                if (currentLevelPoints && nextLevelPoints) {
+                    for (let i = 0; i < currentLevelPoints.length; i++) {
+                        verticalLineVertices.push(currentLevelPoints[i].x, currentLevelPoints[i].y, currentLevelPoints[i].z);
+                        verticalLineVertices.push(nextLevelPoints[i].x, nextLevelPoints[i].y, nextLevelPoints[i].z);
+                    }
+                }
+            }
+
+            verticalLineGeometry.setAttribute('position', new Float32BufferAttribute(verticalLineVertices, 3));
+            const verticalLines = new LineSegments(verticalLineGeometry, verticalLineMaterial);
+            threeScene.add(verticalLines);
+
+            // Commenting out vertical grids as per user request
+            /*
+            // XY Planes (vertical along Z) - Green Grids
+            for (let z = startZ; z <= endZ; z++) {
+                const grid = new GridHelper(
+                    Math.max(size.x, size.y),
+                    Math.max(size.x, size.y),
+                    0x00ff00,
+                    0x00ff00
+                );
+                grid.rotation.x = Math.PI / 2;
+                grid.position.set(center.x, center.y, z);
+                grid.material.opacity = 0.2;
+                grid.material.transparent = true;
+                threeScene.add(grid);
+            }
+
+            // YZ Planes (vertical along X) - Red Grids
+            for (let x = startX; x <= endX; x++) {
+                const grid = new GridHelper(
+                    Math.max(size.y, size.z),
+                    Math.max(size.y, size.z),
+                    0xff0000,
+                    0xff0000
+                );
+                grid.rotation.z = Math.PI / 2;
+                grid.position.set(x, center.y, z);
+                grid.material.opacity = 0.2;
+                grid.material.transparent = true;
+                threeScene.add(grid);
+            }
+            */
         }
-      }
 
-      // Store segments in ref for rendering
-      groupRef.current = newSegments;
+        return () => {
+            const grids = threeScene.children.filter(child => child instanceof GridHelper);
+            grids.forEach(grid => threeScene.remove(grid));
+            const lines = threeScene.children.filter(child => child instanceof LineSegments);
+            lines.forEach(line => threeScene.remove(line));
+        };
+    }, [scene, threeScene]);
 
-      // Adjust camera position based on model size
-      const maxDim = Math.max(size.x, size.y, size.z);
-      camera.position.set(maxDim * 2, maxDim * 2, maxDim * 2);
-      camera.lookAt(0, 0, 0);
-      camera.updateProjectionMatrix();
-    }
-  }, [scene, segmentSize, camera]);
-
-  return (
-    <group>
-      {groupRef.current?.map((segment, index) => (
-        <CubeSegment
-          key={index}
-          position={segment.position}
-          size={segment.size}
-          status={segment.status}
-        />
-      ))}
-    </group>
-  );
+    return null;
 };
 
 export default VolumeSegmentation;

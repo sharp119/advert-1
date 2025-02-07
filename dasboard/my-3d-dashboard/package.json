@@ -9,13 +9,18 @@
     "lint": "eslint .",
     "preview": "vite preview"
   },
-  "dependencies": {
-    "autoprefixer": "^10.4.20",
-    "lucide-react": "^0.474.0",
-    "postcss": "^8.5.1",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
-  },
+  
+    "dependencies": {
+      "@react-three/drei": "^9.121.4",
+      "@react-three/fiber": "^8.17.14",
+      "autoprefixer": "^10.4.20",
+      "lucide-react": "^0.474.0",
+      "postcss": "^8.5.1",
+      "react": "^18.3.1",
+      "react-dom": "^18.3.1",
+      "three": "^0.173.0"
+    },
+  
   "devDependencies": {
     "@eslint/js": "^9.17.0",
     "@types/react": "^18.3.18",

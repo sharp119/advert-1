@@ -9,7 +9,7 @@ function Model({ url }) {
   return <primitive object={scene} position={[0, 0, 0]} />;
 }
 
-const ModelViewer = ({ modelUrl, showSegmentation = false, segmentSize = 2 }) => {
+const ModelViewer = ({ modelUrl, showSegmentation = false }) => {
   return (
     <div className="w-full h-full">
       <Canvas
@@ -20,12 +20,7 @@ const ModelViewer = ({ modelUrl, showSegmentation = false, segmentSize = 2 }) =>
         <pointLight position={[10, 10, 10]} intensity={1} />
         <Suspense fallback={null}>
           <Model url={modelUrl} />
-          {showSegmentation && (
-            <VolumeSegmentation 
-              modelUrl={modelUrl}
-              segmentSize={segmentSize}
-            />
-          )}
+          {showSegmentation && <VolumeSegmentation modelUrl={modelUrl} />}
         </Suspense>
         <OrbitControls />
       </Canvas>
